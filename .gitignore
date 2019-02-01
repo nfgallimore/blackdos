@@ -4,3 +4,4 @@ kernel
 kernel.o
 bochs.out
 bootload
+kasm.o
