@@ -26,12 +26,15 @@
 
 void handleInterrupt21(int, int, int, int);
 void printLogo();
+void readString(char*);
+void printString(char*, int);
 
 void main()
 {
     makeInterrupt21();
     printLogo();
     interrupt(33, 0, "Hello world from Nick Gallimore.\r\n\0", 1, 0);
+    interrupt(33, 1, "Random string that doesnt get used for anything", 0, 0);
     while(1);
 }
 
@@ -70,6 +73,35 @@ void printLogo()
     interrupt(33, 0, " Author(s): Nick Gallimore\r\n\r\n\0", 0, 0);
 }
 
+void readString(char* c)
+{
+    int count = 0;
+    char* letter;
+
+    do 
+    {
+        letter = interrupt(22, 0, 0, 0, 0);
+
+        if (letter == 8 && count > 0) 
+        {
+            --count;
+            interrupt(16, 14 * 256 + 8, 0, 0, 0);
+        }
+        else 
+        {
+            c[count++] = letter;
+            printString(&letter, 0);
+        }
+    }
+    while (letter != 13);
+
+    c[--count] = '\0';
+    printString("\r\n\0");
+    printString(c, 0);
+
+    return;
+}
+
 /* MAKE FUTURE UPDATES HERE */
 /* VVVVVVVVVVVVVVVVVVVVVVVV */
 
@@ -84,8 +116,10 @@ void handleInterrupt21(int ax, int bx, int cx, int dx)
         case 0: 
             printString(bx, cx); 
             break;
-        /*case 1: 
-        case 2: 
+        case 1:
+            readString(bx);
+            break; 
+        /*case 2: 
         case 3: 
         case 4: 
         case 5:
