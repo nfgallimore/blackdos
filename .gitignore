@@ -1,0 +1,6 @@
+printer.out
+floppya.img
+kernel
+kernel.o
+bochs.out
+bootload

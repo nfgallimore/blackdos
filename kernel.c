@@ -35,15 +35,15 @@ void main()
     while(1);
 }
 
+/* Prints a string to the screen when `d` is equal to 0 */
+/* Prints a string to the printer when `d` is equal to 1 */
 void printString(char* c, int d)
 {
-    char letter;
     if (d == 1)
     {
         while (*c != '\0')
         {
-            letter = *c;
-            interrupt(23, letter, 0, 0, 0);
+            interrupt(23, *c, 0, 0, 0);
             ++c;
         }
     }
@@ -51,8 +51,7 @@ void printString(char* c, int d)
     {
         while (*c != '\0')
         {
-            letter = *c;
-            interrupt(16, 14 * 256 + letter, 0, 0, 0);
+            interrupt(16, 14 * 256 + *c, 0, 0, 0);
             ++c;
         }
     }
@@ -83,7 +82,7 @@ void handleInterrupt21(int ax, int bx, int cx, int dx)
 {
     switch(ax) {  
         case 0: 
-            printString(bx,cx); 
+            printString(bx, cx); 
             break;
         /*case 1: 
         case 2: 
@@ -100,7 +99,8 @@ void handleInterrupt21(int ax, int bx, int cx, int dx)
         case 13: 
         case 14: 
         case 15:*/
-        default: printString("General BlackDOS error.\r\n\0");
+        default: 
+            printString("General BlackDOS error.\r\n\0", 0);
     }
     return;
 }
