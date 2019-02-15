@@ -43,45 +43,17 @@ int getNumDigits(int);
 /* Mad Lib kernel.c - c. 2018 O'Neil */
 void main()
 {
-    char food[25], adjective[25], color[25], animal[25];
-    int temp;
+    char buffer[512]; int i;
     makeInterrupt21();
+    for (i = 0; i < 512; i++) buffer[i] = 0;
+    buffer[0] = 4;
+    buffer[1] = 15;
+    interrupt(33,6,buffer,258,0);
+    interrupt(33,12,buffer[0]+1,buffer[1]+1,0);
     printLogo();
-    interrupt(33,0,"\r\nWelcome to the Mad Libs kernel.\r\n\0",0,0);
-    interrupt(33,0,"Enter a food: \0",0,0);
-    interrupt(33,1,food,0,0);
-    temp = 0;
-    while ((temp < 100) || (temp > 120)) {
-        interrupt(33,0,"Enter a number between 100 and 120: \0",0,0);
-        interrupt(33,14,&temp,0,0);
-    }
-    interrupt(33,0,"Enter an adjective: \0",0,0);
-    interrupt(33,1,adjective,0,0);
-    interrupt(33,0,"Enter a color: \0",0,0);
-    interrupt(33,1,color,0,0);
-    interrupt(33,0,"Enter an animal: \0",0,0);
-    interrupt(33,1,animal,0,0);
-    interrupt(33,0,"Your note is on the printer, go get it.\r\n\0",0,0);
-    interrupt(33,0,"Dear Professor O\'Neil,\r\n\0",1,0);
-    interrupt(33,0,"\r\nI am so sorry that I am unable to turn in my program at this time.\r\n\0",1,0);
-    interrupt(33,0,"First, I ate a rotten \0",1,0);
-    interrupt(33,0,food,1,0);
-    interrupt(33,0,", which made me turn \0",1,0);
-    interrupt(33,0,color,1,0);
-    interrupt(33,0," and extremely ill.\r\n\0",1,0);
-    interrupt(33,0,"I came down with a fever of \0",1,0);
-    interrupt(33,13,temp,1,0);
-    interrupt(33,0,". Next my \0",1,0);
-    interrupt(33,0,adjective,1,0);
-    interrupt(33,0," pet \0",1,0);
-    interrupt(33,0,animal,1,0);
-    interrupt(33,0," must have\r\nsmelled the remains of the \0",1,0);
-    interrupt(33,0,food,1,0);
-    interrupt(33,0," on my computer, because he ate it. I am\r\n\0",1,0);
-    interrupt(33,0,"currently rewriting the program and hope you will accept it late.\r\n\0",1,0);
-    interrupt(33,0,"\r\nSincerely,\r\n\0",1,0);
-    interrupt(33,0,"Nick Gallimore\r\n\0",1,0);
-    while(1);
+    interrupt(33,2,buffer,30,0);
+    interrupt(33,0,buffer,0,0);
+    while (1);
 }
 
 void printLogo()
@@ -198,6 +170,44 @@ void writeInt(int x, int opt)
     printString(str, opt);
 }
 
+void readSector(char* buffer, int sector)
+{
+    int relSecNo = mod(sector, 18) + 1;
+    int headNo = mod(div(sector, 18), 2);
+    int trackNo = div(sector, 36);
+
+    interrupt(19, 513, buffer, trackNo * 256 + relSecNo, headNo * 256);
+}
+
+void writeSector(char* buffer, int sector)
+{
+    int relSecNo = mod(sector, 18) + 1;
+    int headNo = mod(div(sector, 18), 2);
+    int trackNo = div(sector, 36);
+
+    interrupt(19, 769, buffer, trackNo * 256 + relSecNo, headNo * 256);
+}
+
+void clearScreen(int bg, int fg)
+{
+    int i;
+
+    for(i = 0; i < 24; ++i)
+    {
+        printString("\r\n", 0);
+    }
+
+    interrupt(16, 512, 0, 0, 0);
+
+    if (bg > 0 && fg > 0)
+    {
+        if (bg > 8 || fg > 16)
+        {
+            return;
+        }
+        interrupt(16, 1536, 4096 * (bg - 1) + 256 * (fg - 1), 0, 6223);
+    }
+}
 
 /* Helper functions */
 
@@ -262,33 +272,55 @@ int getNumDigits(int x)
 
 void handleInterrupt21(int ax, int bx, int cx, int dx)
 {
-    switch(ax) {  
+    switch(ax) 
+    {  
         case 0: 
             printString(bx, cx); 
             break;
+
         case 1:
             readString(bx);
             break; 
-        case 2: 
+
+        case 2:
+            readSector(bx, cx);
+            break;
+
         case 3: 
+
         case 4: 
+
         case 5:
-        case 6: 
+
+        case 6:
+            writeSector(bx, cx);
+            break;
+
         case 7: 
+
         case 8: 
+
         case 9: 
+
         case 10:
+
         case 11: 
-        case 12: 
+
+        case 12:
+            clearScreen(bx, cx);
+            break;
+
         case 13:
             writeInt(bx, cx);
             break;
+
         case 14:
             readInt(bx);
             break;
+
         case 15:
+
         default: 
             printString("General BlackDOS error.\r\n\0", 0);
     }
-    return;
 }
