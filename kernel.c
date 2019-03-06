@@ -26,33 +26,43 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define TRUE = 1
-#define FALSE = 0
-
 void handleInterrupt21(int, int, int, int);
 void printLogo();
 void readString(char*);
 void printString(char*, int);
 void readInt(int*);
 void writeInt(int);
-void writePositiveInt(int);
-void writeNegativeInt(int);
+void error(int);
+void readFile(char* fname, char* buffer, int* size);
+void deleteFile(char* filename);
+void writeFile(char* src, char* tar, int* numSectors);
 int getNthDigit(int, int);
 int getNumDigits(int);
 
-/* Mad Lib kernel.c - c. 2018 O'Neil */
 void main()
 {
-    char buffer[512]; int i;
+    char buffer[12288];
+    int size;
     makeInterrupt21();
-    for (i = 0; i < 512; i++) buffer[i] = 0;
-    buffer[0] = 4;
-    buffer[1] = 15;
-    interrupt(33,6,buffer,258,0);
+
+    /* Step 0 – config file */
+    interrupt(33,2,buffer,258,0);
     interrupt(33,12,buffer[0]+1,buffer[1]+1,0);
     printLogo();
-    interrupt(33,2,buffer,30,0);
+
+    /* Step 1 – load/edit/print file */
+    interrupt(33,3,"spc03\0",buffer,&size);
+    buffer[7] = '2'; buffer[8] = '0';
+    buffer[9] = '1'; buffer[10] = '9';
     interrupt(33,0,buffer,0,0);
+    interrupt(33,0,"\r\n\0",0,0);
+    
+    /* Step 2 – write revised file */
+    interrupt(33,8,"spr19\0",buffer,size);
+
+    /* Step 3 – delete original file */
+    interrupt(33,7,"spc03\0",0,0);
+
     while (1);
 }
 
@@ -192,7 +202,7 @@ void clearScreen(int bg, int fg)
 {
     int i;
 
-    for(i = 0; i < 24; ++i)
+    for (i = 0; i < 24; ++i)
     {
         printString("\r\n", 0);
     }
@@ -206,6 +216,300 @@ void clearScreen(int bg, int fg)
             return;
         }
         interrupt(16, 1536, 4096 * (bg - 1) + 256 * (fg - 1), 0, 6223);
+    }
+}
+
+void readFile(char* fname, char* buffer, int* size)
+{
+    char directory[512];
+    int i, j, fileFound;
+
+    readSector(directory, 257);
+
+    fileFound = 0;
+    *size = 0;
+
+    // loop through all 16 files in directory
+    for (i = 0; i < 512; i += 32)
+    {
+        // check if first 8 bytes of this file match the fname
+        for (j = 0; j < 8; ++j)
+        {
+            if (directory[i + j] == fname[j])
+            {
+                if (j == 7 || fname[j] == '\0')
+                {
+                    fileFound = 1;
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+        if (fileFound == 1)
+        {
+            break;
+        }
+    }
+    
+    if (fileFound == 0)
+    {
+        interrupt(33, 15, 0, 0, 0);
+    }
+
+
+    // load remaining 24 bytes into buffer
+    for (j = i + 8; j < 32; ++j)
+    {
+        if (directory[j + i] != 0) 
+        {
+            readSector(buffer, directory[j + i]);       
+
+            buffer += 512;
+            *size = *size + 1;
+        }
+        else
+        {
+            break; // if it is 0 then we can assume the rest are 0
+        }
+    }   
+}
+
+void deleteFile(char* fname)
+{
+
+    char directory[512], map[512];
+    int i, j, fileFound, directoryIndex;
+
+    readSector(directory, 257);
+    readSector(map, 256);
+
+    fileFound = 0;
+
+    // find filename
+    for (i = 0; i < 512; i += 32)
+    {
+        // check if first 8 bytes of this file match the fname
+        for (j = 0; j < 8; ++j)
+        {
+            if (directory[i + j] == fname[j])
+            {
+                if (j == 7 || fname[j] == '\0')
+                {
+                    fileFound = 1;
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+        if (fileFound == 1)
+        {
+            directoryIndex = i;
+            break;
+        }
+    }
+
+    if (fileFound == 0)
+    {
+        interrupt(33, 15, 0, 0, 0);
+    }
+
+    directory[directoryIndex] = 0;
+
+    for(i = 8; i < 32; ++i)
+    {
+        map[directory[i]] = 0;
+    }
+
+    writeSector(directory, 257);
+    writeSector(map, 256);
+}
+
+void writeFile(char* name, char* buffer, int* numSectors)
+{
+    char directory[512], map[512], nextPartOfBuffer[512];
+    int i, j, k, l, directoryFreeSpaceIndex, freeSpaceFound;
+
+    readSector(directory, 257);
+    readSector(map, 256); 
+
+    freeSpaceFound = 0;
+
+    // loop through directory to search if name is used
+    for (i = 0; i < 512; i += 32)
+    {
+        // if is free space, record index
+        if (directory[i] == 0)
+        {
+            directoryFreeSpaceIndex = i;
+            freeSpaceFound = 1;
+            continue;
+        }
+
+        // check if first 8 bytes of this file match the name
+        for (j = 0; j < 8; ++j)
+        {
+            // if directory entry has same name as proposed new name
+            if (directory[i + j] == name[j])
+            {
+                if (j == 7 || name[j] == '\0')
+                {
+                    interrupt(33, 15, 1, 0, 0);
+                    return;
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+
+    // if no directory entries left
+    if (freeSpaceFound == 0)
+    {
+        interrupt(33, 15, 2, 0, 0);
+        return;
+    }
+
+    // copy name to free directory entry
+    for (i = 0; name[i] != '\0'; ++i)
+    {
+        directory[directoryFreeSpaceIndex + i] = name[i];
+    }
+    while (i < 8)
+    {
+        directory[directoryFreeSpaceIndex + i] = 0;
+        ++i;
+    }
+
+    
+    // update map for each sector of the file
+    for (i = 0; i < numSectors; ++i)
+    {
+        // search through map to find a free sector
+        for (j = 0; j < 512; ++j)
+        {
+            // if its free, use it
+            if (map[j] == 0)
+            {
+                map[j] = 255;
+                directory[directoryFreeSpaceIndex + 8 + i] = j;
+
+                // write the data to the sector
+                for (k = 0; k < 512; ++k)
+                {
+                    nextPartOfBuffer[k] = buffer[k + 512 * i];
+                }
+                writeSector(nextPartOfBuffer, j);
+
+                break;
+            }
+        }
+
+        // disk is full
+        if (j == 512)
+        {
+            interrupt(33, 15, 2, 0, 0);
+            return;
+        }
+    }
+
+    // fill remaining directory sector entries with 0
+    for (i = numSectors + 8; i < 32; ++i)
+    {
+        directory[directoryFreeSpaceIndex + i] = 0;
+    }
+
+    writeSector(directory, 257);
+    writeSector(map, 256);
+}
+
+
+void error(int bx)
+{
+    if (bx == 0)
+    {
+        interrupt(33, 0, "File not found.\r\n\0", 0, 0);
+    }
+    else if (bx == 1)
+    {
+        interrupt(33, 0, "Bad file name.\r\n\0", 0, 0);
+    }
+    else if (bx == 2)
+    {
+        interrupt(33, 0, "Disk full.\r\n\0", 0, 0);
+    }
+    else 
+    {
+        interrupt(33, 0, "General error.\r\n\0", 0, 0);
+    }
+}
+
+
+void handleInterrupt21(int ax, int bx, int cx, int dx)
+{
+    switch(ax) 
+    {  
+        case 0: 
+            printString(bx, cx); 
+            break;
+
+        case 1:
+            readString(bx);
+            break; 
+
+        case 2:
+            readSector(bx, cx);
+            break;
+
+        case 3:
+            readFile(bx, cx, dx);
+            break;
+
+        case 4: 
+
+        case 5:
+
+        case 6:
+            writeSector(bx, cx);
+            break;
+
+        case 7: 
+            deleteFile(bx);
+            break;
+
+        case 8:
+            writeFile(bx, cx, dx);
+            break;
+
+        case 9: 
+
+        case 10:
+
+        case 11: 
+
+        case 12:
+            clearScreen(bx, cx);
+            break;
+
+        case 13:
+            writeInt(bx, cx);
+            break;
+
+        case 14:
+            readInt(bx);
+            break;
+
+        case 15:
+            error(bx);
+            break;
+
+        default: 
+            printString("General BlackDOS error.\r\n\0", 0);
     }
 }
 
@@ -231,6 +535,7 @@ int div(int a, int b)
     return (q - 1);
 }
 
+// Can reduce to O(logn) operations
 int pow(int base, int exponent)
 {
     int result = 1;
@@ -268,59 +573,4 @@ int getNumDigits(int x)
         return 2;
     }
     return 1;
-}
-
-void handleInterrupt21(int ax, int bx, int cx, int dx)
-{
-    switch(ax) 
-    {  
-        case 0: 
-            printString(bx, cx); 
-            break;
-
-        case 1:
-            readString(bx);
-            break; 
-
-        case 2:
-            readSector(bx, cx);
-            break;
-
-        case 3: 
-
-        case 4: 
-
-        case 5:
-
-        case 6:
-            writeSector(bx, cx);
-            break;
-
-        case 7: 
-
-        case 8: 
-
-        case 9: 
-
-        case 10:
-
-        case 11: 
-
-        case 12:
-            clearScreen(bx, cx);
-            break;
-
-        case 13:
-            writeInt(bx, cx);
-            break;
-
-        case 14:
-            readInt(bx);
-            break;
-
-        case 15:
-
-        default: 
-            printString("General BlackDOS error.\r\n\0", 0);
-    }
 }
