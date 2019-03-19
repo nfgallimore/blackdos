@@ -11,6 +11,3 @@ Implemented read and write to sectors of disk. Implemented clear screen and abil
 
 Lab 4:
 Implemented read file, write file, and delete file. See functions readFile, writeFile, deleteFile.
-
-Lab 5:
-Implemeneted run program, and stop. See functions runProgram, and stop.
