@@ -27,3 +27,23 @@ ld86 -o kernel -d kernel.o kasm.o
 
 # Puts kernel into sector 259
 dd if=kernel of=floppya.img bs=512 conv=notrunc seek=259
+
+# Compile load file
+gcc -o loadFile loadFile.c
+
+# Compile interrupts for Shell
+as86 blackdos.asm -o bdos_asm.o
+
+# Compile Shell
+bcc -ansi -c -o Shell.o Shell.c
+ld86 -o Shell -d Shell.o bdos_asm.o
+
+# Compile other files
+bcc -ansi -c -o fib.o fib.c
+ld86 -o fib -d fib.o bdos_asm.o
+
+# Load files
+./loadFile Shell
+./loadFile kitty1
+./loadFile Stenv
+./loadFile story
