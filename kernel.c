@@ -40,6 +40,8 @@ void runProgram(char* programName, int segments);
 void stop();
 int getNthDigit(int, int);
 int getNumDigits(int);
+int strcmp(char* s1, char* s2, int len);
+char* substr(char* src, int startIndex, int length);
 
 void main()
 {
@@ -76,7 +78,7 @@ void readString(char* c)
         
         if (letter == 13)
         {
-        	break;
+            break;
         }
         else if (letter == 8 && count > 0) 
         {
@@ -141,7 +143,7 @@ void writeInt(int x, int opt)
 
     if (x < 0)
     {
-    	return;
+        return;
     }
 
     if (x == 0)
@@ -221,31 +223,16 @@ void readFile(char* fname, char* buffer, int* size)
     for (i = 0; i < 512; i += 32)
     {
         // check if first 8 bytes of this file match the fname
-        for (j = 0; j < 8; ++j)
-        {
-            if (directory[i + j] == fname[j])
-            {
-                if (j == 7 || fname[j] == '\0')
-                {
-                    fileFound = 1;
-                }
-            }
-            else
-            {
-                break;
-            }
-        }
-        if (fileFound == 1)
+        if (strcmp(substr(directory, i, 8), fname, 8))
         {
             break;
         }
     }
     
-    if (fileFound == 0)
+    if (i == 512)
     {
         interrupt(33, 15, 0, 0, 0);
     }
-
 
     // load remaining 24 bytes into buffer
     for (j = i + 8; j < 32; ++j)
@@ -261,7 +248,7 @@ void readFile(char* fname, char* buffer, int* size)
         {
             break; // if it is 0 then we can assume the rest are 0
         }
-    }   
+    }
 }
 
 void deleteFile(char* fname)
@@ -539,6 +526,32 @@ void handleInterrupt21(int ax, int bx, int cx, int dx)
 }
 
 /* Helper functions */
+
+char* substr(char* src, int startIndex, int length)
+{
+    int i, stopIndex;
+    char* substr;
+    stopIndex = startIndex + length;
+    for (i = 0; startIndex < stopIndex; i++)
+    {
+        substr[i] = src[startIndex];
+        startIndex++;
+    }
+    return substr;
+}
+
+int strcmp(char* s1, char* s2, int len)
+{
+    int i;
+    for (i = 0; i < len; i++)
+    {
+        if (s1[i] != s2[i])
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
 
 int mod(int a, int b)
 {

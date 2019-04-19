@@ -106,6 +106,7 @@ int main()
             PRINTS("help - help menu\r\n\0");
             PRINTS("senv - set enviornment variables\r\n\0");
             PRINTS("twet - create a text file\0");
+            PRINTS("\r\n\0");
         }
         else if (strcmp(command, "twet", 4))
         {

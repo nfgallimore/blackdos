@@ -52,10 +52,10 @@ ld86 -o t3 -d t3.o bdos_asm.o
 
 # Load files
 ./loadFile Shell
-./loadFile Stenv
+# ./loadFile Stenv
 ./loadFile story
-./loadFile fib
-./loadFile cal
-./loadFile t3
-./loadFile kitty1
-./loadFile kitty2
+# ./loadFile fib
+# ./loadFile cal
+# ./loadFile t3
+# ./loadFile kitty1
+# ./loadFile kitty2
